@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>AI Infra · 面试练习</title>
+  <meta name="description" content="固定舞台、多页解析的中文 AI 基础设施面试练习。">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23fbfaf6'/%3E%3Ctext x='32' y='43' text-anchor='middle' font-family='Georgia' font-size='30' fill='%23934421'%3EAI%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="loading" class="loading" role="status">正在读取独立题库…</div>
+
+  <div id="app" class="deck-app" hidden>
+    <header class="deck-top">
+      <div class="brand"><span>AI Infra</span><h1>面试练习</h1></div>
+      <nav id="topic-tabs" class="topic-tabs" aria-label="专题筛选"></nav>
+      <div class="top-stats" aria-label="练习统计">
+        <span><b id="stat-done">0 / 0</b><small>完成</small></span>
+        <span><b id="stat-accuracy">—</b><small>单选正确率</small></span>
+        <span><b id="stat-self">0 / 0</b><small>简答自评</small></span>
+      </div>
+      <a class="top-link" href="motor-explained/">Motor 图解 ↗</a>
+      <button id="overview-toggle" class="top-button" type="button" aria-expanded="false" aria-controls="overview">题目总览</button>
+    </header>
+
+    <main class="deck-viewport" id="viewport" aria-label="答题舞台">
+      <div class="stage-fitter" id="fitter">
+        <section class="stage-frame" id="stage" tabindex="-1" aria-label="当前页"></section>
+      </div>
+    </main>
+
+    <footer class="deck-footer" aria-label="翻页与进度">
+      <div class="footer-main">
+        <div class="footer-location">
+          <span id="location">—</span>
+          <strong id="location-title">—</strong>
+        </div>
+        <div class="footer-actions">
+          <button id="prev" type="button">← 上一页</button>
+          <button id="bookmark" type="button" class="ghost" aria-pressed="false">收藏</button>
+          <button id="overview-button" type="button" class="ghost" aria-expanded="false" aria-controls="overview">总览</button>
+          <button id="next" type="button">下一页 →</button>
+        </div>
+      </div>
+      <div id="progress-track" class="progress-track" role="progressbar" aria-label="题目进度" aria-valuemin="1" aria-valuemax="1" aria-valuenow="1">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="footer-note"><span id="footer-summary"></span><span id="footer-hint">A–D 选项 · Enter 提交 · ← → 翻页 · Esc 关闭总览</span></div>
+    </footer>
+
+    <div id="overview" class="overview" hidden>
+      <div class="overview-panel" role="dialog" aria-modal="true" aria-labelledby="overview-title">
+        <header class="overview-head">
+          <div><span>题目总览</span><h2 id="overview-title">选择一题开始</h2></div>
+          <button id="overview-close" type="button">关闭 ×</button>
+        </header>
+        <div class="overview-filters">
+          <label class="search-field">搜索<input id="overview-search" type="search" placeholder="标题、题干或标签" autocomplete="off"></label>
+          <label>专题<select id="overview-topic"><option value="">全部专题</option></select></label>
+          <label>难度<select id="overview-difficulty"><option value="">全部难度</option><option>基础</option><option>进阶</option></select></label>
+          <label>题型<select id="overview-type"><option value="">全部题型</option><option value="single">单选</option><option value="short">简答自评</option></select></label>
+          <label class="check"><input id="overview-wrong" type="checkbox">只看待复习</label>
+          <label class="check"><input id="overview-bookmarked" type="checkbox">只看收藏</label>
+        </div>
+        <div id="overview-grid" class="overview-grid"></div>
+        <footer class="overview-foot"><span id="overview-count"></span><span class="overview-data"><button id="export-progress" type="button">导出进度</button><label class="import-label">导入进度<input id="import-progress" type="file" accept="application/json,.json" hidden></label><span>点击题目跳转 · Esc 关闭</span></span></footer>
+      </div>
+    </div>
+
+    <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
