@@ -145,6 +145,7 @@ npm test           # 状态恢复、筛选、统计、校验规则测试
 - `library/sglang-36.md`：SGLang 36 题清单与解释角度
 - `library/nowcoder-inference.md`：牛客等公开面经中的推理岗问法
 - `library/inference-themes.md`：PagedAttention、PD、投机解码、MLA 等主题总结
+- `library/tensorrt-quant-cuda.md`：TensorRT-LLM、量化、CUDA/GPU 的资料与理解角度
 
 资料库只做摘要和索引，不转载全文；每题“资料来源”仍直接链到原文。
 

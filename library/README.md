@@ -16,6 +16,7 @@
 - [SGLang 专项 36 题清单](sglang-36.md)
 - [牛客等公开面经中的推理岗问题](nowcoder-inference.md)
 - [推理框架高频主题：PagedAttention、PD、投机解码、MLA](inference-themes.md)
+- [TensorRT-LLM、量化、CUDA/GPU 资料索引](tensorrt-quant-cuda.md)
 
 ## 使用原则
 
