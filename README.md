@@ -1,12 +1,15 @@
 # AI Infra 面试练习
 
-一个不需要构建、数据与页面分离的中文面试练习网站。覆盖 AI Infra、vLLM、SGLang、MindIE Motor、牛客面经，以及 TensorRT-LLM、量化、CUDA/GPU 基础。
+一个不需要构建、数据与页面分离的中文面试练习网站。覆盖 AI Infra、vLLM、SGLang、MindIE Motor、牛客面经，以及 TensorRT-LLM、量化、CUDA/GPU 基础和昇腾（Ascend）软件栈。
 
-- 432 道题：331 道单选，101 道简答自评
-- 专题分布：AI Infra 98、vLLM 98、SGLang 98、Motor 42、面经 24、TensorRT-LLM 24、量化 24、CUDA/GPU 24
+- 448 道题：343 道单选，105 道简答自评
+- 专题分布：AI Infra 98、vLLM 98、SGLang 98、Motor 42、面经 24、TensorRT-LLM 24、量化 24、CUDA/GPU 32、昇腾 8
 - 每道题都有参考回答、评分要点、通俗解析、日常类比、易错点、递进追问和核对来源
 - 面向零基础：每题另有 3–5 个术语拆解、200 字以上的深入讲解，以及单选四个选项的逐项对错分析
 - 固定舞台的讲义式界面：一屏一页，不滚动页面；每题按“题目 → 参考答案 → 名词拆解 → 为什么 → 再深一层 → 选项辨析 → 易错与追问 → 自评”翻页
+- 每道题的讲解页都有按题目内容定制的电影感图解：左侧场景动画、右侧大字讲解
+- JSON 只声明预置、数据和时间点，动画与样式在项目里；新增题目没写图解时，页面会按内容自动生成兜底场景
+- 讲解页可自动播放并逐页推进，停在选项、易错与自评前；任意点击或滚动会暂停本页计时
 - 字号会按本页内容多少自动调整；窄屏或高倍缩放时改为舞台内滚动，页面本身仍不滚动
 - 单选选中即提交并显示解析；简答只做自评，不自动判断文字对错
 - 支持 A–D / 1–4 选答案，← → / J K / PageUp PageDown 翻页，移动端左右滑动切页
@@ -52,6 +55,8 @@ python3 -m http.server 4180 --bind 127.0.0.1
 infra-interview/
 ├── index.html            页面骨架
 ├── styles.css            固定舞台的浅色讲义样式与窄屏适配
+├── scene.css             图解场景、镜头运动和窄屏布局
+├── scene-presets.js      13 个场景预置、时间点与自动图解
 ├── app.js                加载题库、筛选、答题、存储与渲染
 ├── quiz-core.js          可独立测试的状态、统计与题库校验
 ├── data/questions.json   题目与来源（唯一题库来源）
@@ -124,9 +129,50 @@ npm test           # 状态恢复、筛选、统计、校验规则测试
 
 简答题把 `type` 改为 `short`，删除 `options`、`answer.optionId` 和 `answer.optionNotes`，保留其余解析字段（包括 `terms` 与 `deepDive`）。
 
+### 视觉场景 `visual`（可选）
+
+题目可以带一个 `visual` 对象。页面只认识预置名和数据，不执行题库里的代码；渲染器、动画和样式都在 `scene-presets.js` 与 `scene.css`。现在每道题都有自己的场景；新增题目如果暂时没写 `visual`，页面会按 `answer` 里的要点、术语和易错点自动生成兜底场景。
+
+```json
+"visual": {
+  "preset": "kv-grid",
+  "duration": 11000,
+  "camera": "push",
+  "headline": "逻辑连续，物理可以散",
+  "data": {
+    "logical": [0, 1, 2, 3],
+    "physical": [7, 3, 9, 1],
+    "hit": [1],
+    "note": "逻辑块 1 与其他请求共享同一物理前缀块。"
+  },
+  "beats": [
+    { "at": 0, "focus": "logical-0", "caption": "请求按固定块切分。" },
+    { "at": 2600, "focus": "physical-1", "caption": "块表把逻辑块 1 指向物理块 3。" }
+  ],
+  "deep": {
+    "preset": "compare",
+    "headline": "分页省的是浪费与碎片",
+    "data": {
+      "left": { "kicker": "省下的", "title": "预留与碎片", "items": ["按需分配", "共享前缀"] },
+      "right": { "kicker": "没省下的", "title": "块尾与查表", "items": ["块尾浪费", "块表开销"] }
+    }
+  }
+}
+```
+
+- `preset`：`flow`、`compare`、`kv-grid`、`queue`、`orbit`、`layers`、`matrix`、`numberline`、`lanes`、`memory`、`formula`、`quote`、`option-board`。
+- `duration`：场景时长，4000–20000ms；自动播放会在此基础上多等 500ms。
+- `camera`：`push`、`pull`、`track`、`pan`、`tilt`、`drift`；窄屏和“减少动态效果”下自动关闭镜头运动。
+- `headline`：讲解页的大标题；`headlines` 可按 `summary`、`terms`、`explain`、`deep`、`options` 分别覆盖。
+- `data`：必须满足对应预置的结构。例如 `flow` 要 `nodes`，`compare` 要 `left`/`right`，`matrix` 固定 3 列，`formula` 要 `formula`；`numberline` 还可用 `bands` 标出区间。
+- `beats`：`{ at, focus, caption }`。`focus` 对应渲染出的 `data-focus`，例如 `logical-0`、`physical-1`、`option-2`；省略时按场景元素每 2.2 秒自动生成。
+- `deep`：只覆盖“再深一层”这一页，可换预置、数据、镜头和标题；其余字段继承顶层 `visual`。
+
+自动播放只在带 `visual` 的题上启用，从参考答案推进到选项辨析，进入“易错与追问”或自评后停止；新增题目自动生成的场景同样适用。点击、滚动或按方向键会暂停当前页的计时，底部按钮可全局关闭。
+
 ### 新增或修改题目
 
-1. 在 `data/questions.json` 的 `questions` 里新增记录，`id` 必须唯一；专题只能是 `AI Infra`、`vLLM`、`SGLang`、`Motor`、`面经`、`TensorRT-LLM`、`量化`、`CUDA/GPU`，难度只能是 `基础`、`进阶`。
+1. 在 `data/questions.json` 的 `questions` 里新增记录，`id` 必须唯一；专题只能是 `AI Infra`、`vLLM`、`SGLang`、`Motor`、`面经`、`TensorRT-LLM`、`量化`、`CUDA/GPU`、`昇腾`，难度只能是 `基础`、`进阶`。
 2. 新增来源时写入顶层 `sources`，再在题目的 `sourceIds` 中引用；不要只写裸链接。
 3. 修改已有题目的答案或语义时，把该题 `revision` 加 1。浏览器会丢弃旧版本的作答，避免把旧答案当成新答案。
 4. 更新 `updatedAt`，运行 `npm run validate` 和 `npm test`。
@@ -161,7 +207,7 @@ npm test           # 状态恢复、筛选、统计、校验规则测试
 - `adapted`：参考公开面试主题重新编写，并用题目引用的官方文档、论文或源码核对；不声称是某公司的真实面试题。
 - `original`：基于 MindIE Motor 本地源码编写的项目练习。
 
-来源列表共 144 条，包含 vLLM / SGLang / TensorRT-LLM 官方文档与论文、Hugging Face 与 NVIDIA 文档、公开面试题主题页、牛客面经，以及 MindIE Motor 的 GitCode 仓库文件。题目优先引用官方文档、原始论文和可核对源码；技术结论以题目列出的核对入口为准，性能和兼容性判断不应脱离具体版本与部署条件。
+来源列表共 166 条，包含 vLLM / SGLang / TensorRT-LLM / 昇腾 CANN 官方文档与论文、Hugging Face 与 NVIDIA 文档、公开面试题主题页、牛客面经，以及 MindIE Motor 的 GitCode 仓库文件。题目优先引用官方文档、原始论文和可核对源码；技术结论以题目列出的核对入口为准，性能和兼容性判断不应脱离具体版本与部署条件。
 
 ## 浏览器
 

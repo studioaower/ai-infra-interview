@@ -12,7 +12,7 @@ const single = bank.questions.find(q => q.type === 'single');
 const short = bank.questions.find(q => q.type === 'short');
 const allStates = () => Object.fromEntries(bank.questions.map(q => [q.id, fresh(q)]));
 
-test('题库包含八个专题、两种题型且通过结构校验', () => {
+test('题库包含九个专题、两种题型且通过结构校验', () => {
   assert.ok(bank.questions.length >= 430, `expected 430+, got ${bank.questions.length}`);
   assert.equal(new Set(bank.questions.map(q => q.id)).size, bank.questions.length);
   assert.ok(bank.questions.filter(q => q.type === 'single').length >= 320);
@@ -27,6 +27,7 @@ test('题库包含八个专题、两种题型且通过结构校验', () => {
   for (const topic of ['TensorRT-LLM', '量化', 'CUDA/GPU']) {
     assert.ok(counts[topic] >= 20, `${topic} expected 20+, got ${counts[topic]}`);
   }
+  assert.ok(counts['昇腾'] >= 8, `昇腾 expected 8+, got ${counts['昇腾']}`);
   for (const q of bank.questions) {
     assert.ok(difficulties.includes(q.difficulty));
     assert.ok(q.answer.keyPoints.length >= 3);
@@ -121,4 +122,32 @@ test('筛选按专题、难度、题型、关键词与练习模式组合生效',
 
   states[target.id].bookmarked = true;
   assert.deepEqual(filterQuestions(bank.questions, states, { ...base, mode: 'bookmarked' }).map(q => q.id), [target.id]);
+});
+
+test('视觉场景只允许预置、合法时长和匹配的数据结构', () => {
+  const withVisual = bank.questions.find(q => q.visual);
+  assert.ok(withVisual, '至少有一道样板题带视觉场景');
+  assert.ok(withVisual.visual.preset);
+
+  const badPreset = structuredClone(bank);
+  badPreset.questions.find(q => q.visual).visual.preset = 'explode';
+  assert.throws(() => validateBank(badPreset), /未知 preset/);
+
+  const badDuration = structuredClone(bank);
+  badDuration.questions.find(q => q.visual).visual.duration = 25000;
+  assert.throws(() => validateBank(badDuration), /duration/);
+
+  const badData = structuredClone(bank);
+  badData.questions.find(q => q.visual).visual = { preset: 'matrix', data: { columns: ['a'], rows: [] } };
+  assert.throws(() => validateBank(badData), /data 不满足/);
+
+  const badBeat = structuredClone(bank);
+  const beatHost = badBeat.questions.find(q => q.visual);
+  beatHost.visual = { preset: 'quote', data: { text: 'x' }, beats: [{ at: -1, focus: 'x' }] };
+  assert.throws(() => validateBank(badBeat), /beats\[0\]\.at/);
+
+  const nestedDeep = structuredClone(bank);
+  const deepHost = nestedDeep.questions.find(q => q.visual);
+  deepHost.visual = { preset: 'quote', data: { text: 'x' }, deep: { deep: {} } };
+  assert.throws(() => validateBank(nestedDeep), /不应嵌套 deep/);
 });

@@ -1,6 +1,58 @@
 export const assessments = ['未掌握', '部分掌握', '已掌握'];
-export const topics = ['AI Infra', 'vLLM', 'SGLang', 'Motor', '面经', 'TensorRT-LLM', '量化', 'CUDA/GPU'];
+export const topics = ['AI Infra', 'vLLM', 'SGLang', 'Motor', '面经', 'TensorRT-LLM', '量化', 'CUDA/GPU', '昇腾'];
 export const difficulties = ['基础', '进阶'];
+export const visualPresets = ['flow','compare','kv-grid','queue','orbit','layers','matrix','numberline','lanes','memory','formula','quote','option-board'];
+export const visualCameras = ['push','pull','track','pan','tilt','drift'];
+const visualSlides = ['summary','terms','explain','deep','options'];
+const visualRequirements = {
+  flow: d => Array.isArray(d.nodes) && d.nodes.length >= 2,
+  compare: d => d.left && typeof d.left === 'object' && d.right && typeof d.right === 'object',
+  'kv-grid': d => Array.isArray(d.logical) && d.logical.length > 0 && Array.isArray(d.physical) && d.physical.length > 0,
+  queue: d => Array.isArray(d.rounds) && d.rounds.length > 0,
+  orbit: d => Array.isArray(d.items) && d.items.length > 0,
+  layers: d => Array.isArray(d.layers) && d.layers.length > 0,
+  matrix: d => Array.isArray(d.columns) && d.columns.length === 3 && Array.isArray(d.rows) && d.rows.length > 0
+    && d.rows.every(row => row && Array.isArray(row.cells) && row.cells.length === 3),
+  numberline: d => Number.isFinite(d.min) && Number.isFinite(d.max) && d.max > d.min && Array.isArray(d.marks) && d.marks.length > 0,
+  lanes: d => Number.isFinite(d.lanes) && d.lanes > 0,
+  memory: d => Number.isFinite(d.rows) && d.rows > 0 && Number.isFinite(d.cols) && d.cols > 0,
+  formula: d => typeof d.formula === 'string' && d.formula.trim().length > 0,
+  quote: d => typeof d.text === 'string' && d.text.trim().length > 0,
+  'option-board': d => Array.isArray(d.options) && d.options.length > 0,
+};
+function validateVisual(q, visual, label, inheritedPreset) {
+  const where = label ? `${q.id}: 视觉 ${label}` : `${q.id}: 视觉`;
+  if (!visual || typeof visual !== 'object' || Array.isArray(visual)) throw Error(`${where} 必须是对象`);
+  const preset = visual.preset ?? inheritedPreset;
+  if (label && visual.preset === undefined && !inheritedPreset) throw Error(`${where} 缺少 preset`);
+  if (!visualPresets.includes(preset)) throw Error(`${where} 未知 preset ${preset}`);
+  if (visual.duration !== undefined && (!Number.isFinite(visual.duration) || visual.duration < 4000 || visual.duration > 20000)) throw Error(`${where} duration 必须在 4000–20000ms`);
+  if (visual.camera !== undefined && !visualCameras.includes(visual.camera)) throw Error(`${where} 未知 camera ${visual.camera}`);
+  if (visual.headline !== undefined && (typeof visual.headline !== 'string' || !visual.headline.trim())) throw Error(`${where} headline 无效`);
+  if (visual.headlines !== undefined) {
+    if (!visual.headlines || typeof visual.headlines !== 'object' || Array.isArray(visual.headlines)) throw Error(`${where} headlines 无效`);
+    for (const [key, value] of Object.entries(visual.headlines)) {
+      if (!visualSlides.includes(key) || typeof value !== 'string' || !value.trim()) throw Error(`${where} headlines.${key} 无效`);
+    }
+  }
+  if (visual.data !== undefined) {
+    if (!visual.data || typeof visual.data !== 'object' || Array.isArray(visual.data)) throw Error(`${where} data 必须是对象`);
+    if (!visualRequirements[preset](visual.data)) throw Error(`${where} data 不满足 ${preset} 的结构要求`);
+  } else if (!label) throw Error(`${where} 缺少 data`);
+  if (visual.beats !== undefined) {
+    if (!Array.isArray(visual.beats)) throw Error(`${where} beats 必须是数组`);
+    visual.beats.forEach((beat, index) => {
+      if (!beat || !Number.isFinite(beat.at) || beat.at < 0) throw Error(`${where} beats[${index}].at 无效`);
+      if (typeof beat.focus !== 'string' || !beat.focus.trim()) throw Error(`${where} beats[${index}].focus 无效`);
+      if (beat.caption !== undefined && typeof beat.caption !== 'string') throw Error(`${where} beats[${index}].caption 无效`);
+    });
+  }
+  if (visual.deep !== undefined) {
+    if (label) throw Error(`${where} 不应嵌套 deep`);
+    if (visual.deep && typeof visual.deep === 'object' && visual.deep.preset === undefined) validateVisual(q, visual.deep, 'deep', preset);
+    else validateVisual(q, visual.deep, 'deep');
+  }
+}
 export function validateBank(bank) {
   if(bank?.schemaVersion!==1||!Array.isArray(bank.questions)||!bank.questions.length||!Array.isArray(bank.sources)||!bank.sources.length)throw Error('题库版本或结构无效');
   const sources=new Set(),ids=new Set();
@@ -26,6 +78,7 @@ export function validateBank(bank) {
     if(typeof q.answer.deepDive!=='string'||!q.answer.deepDive.trim())throw Error(`${q.id}: 深入讲解无效`);
     if(!Array.isArray(q.sourceIds)||!q.sourceIds.length||new Set(q.sourceIds).size!==q.sourceIds.length||q.sourceIds.some(id=>!sources.has(id)))throw Error(`${q.id}: 来源无效`);
     if(!['adapted','original'].includes(q.origin?.kind)||typeof q.origin.note!=='string'||!q.origin.note.trim())throw Error(`${q.id}: 来源属性无效`);
+    if(q.visual!==undefined) validateVisual(q, q.visual, '');
     if(q.type==='single'){
       if(!Array.isArray(q.options)||q.options.length<2||new Set(q.options.map(o=>o.id)).size!==q.options.length||q.options.some(o=>typeof o.id!=='string'||!o.id.trim()||typeof o.text!=='string'||!o.text.trim())||!q.options.some(o=>o.id===q.answer.optionId))throw Error(`${q.id}: 选项与答案不匹配`);
       const notes=q.answer.optionNotes;

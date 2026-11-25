@@ -1,15 +1,28 @@
 import {
   assessments, restore, isCorrect, isWrong, completed, filterQuestions,
   statistics, validateBank, topics,
-} from './quiz-core.js';
+} from './quiz-core.js?v=20261126g';
+import { mountScene, visualFor } from './scene-presets.js?v=20261126g';
 
 const $ = id => document.getElementById(id);
 const KEY = 'infra-interview-practice-v1';
+const AUTOPLAY_KEY = 'infra-interview-autoplay-v1';
+const SCENE_SLIDES = new Set(['summary', 'terms', 'explain', 'deep', 'options']);
+const SCENE_HEADLINES = {
+  summary: '答案与理由，分开记',
+  terms: '术语是理解的坐标',
+  explain: '机制比结论更重要',
+  deep: '面试时，多讲一层',
+  options: '每个干扰项都有来由',
+};
 const SLIDE_NAMES = {
   question: '题目', summary: '参考答案', terms: '名词拆解', explain: '为什么',
   deep: '再深一层', options: '选项辨析', review: '易错与追问', assess: '自评',
 };
-const app = { bank: null, states: {}, currentId: null, slideIndex: 0, topic: '', overviewOpen: false };
+const app = {
+  bank: null, states: {}, currentId: null, slideIndex: 0, topic: '', overviewOpen: false,
+  autoplay: true, scene: null, slideTimer: null,
+};
 const overviewFilters = { search: '', topic: '', difficulty: '', type: '', wrong: false, bookmarked: false };
 let saveTimer = null;
 let wired = false;
@@ -26,6 +39,77 @@ const makeButton = (label, handler, className = '') => {
   node.addEventListener('click', handler);
   return node;
 };
+
+function sceneSpecFor(q, kind) {
+  if (!SCENE_SLIDES.has(kind)) return null;
+  return visualFor(q, kind);
+}
+function headlineFor(q, kind, spec) {
+  const override = spec?.headlines?.[kind] || q.visual?.headlines?.[kind];
+  if (override) return override;
+  if (spec?.headline) return spec.headline;
+  return SCENE_HEADLINES[kind] || SLIDE_NAMES[kind];
+}
+function cinematicLayout(slide, q, kind, spec) {
+  const head = slide.querySelector('.slide-head');
+  if (!head) return null;
+  const titleNode = slide.querySelector('h1');
+  const pageLabel = titleNode?.textContent || SLIDE_NAMES[kind];
+  titleNode?.remove();
+  const text = el('div', 'cinema-text');
+  text.append(el('h1', '', pageLabel), el('p', 'cinema-headline', headlineFor(q, kind, spec)));
+  [...slide.children].forEach(child => { if (child !== head) text.append(child); });
+  const visual = el('div', 'cinema-visual');
+  const grid = el('div', 'cinema-grid');
+  grid.append(visual, text);
+  slide.replaceChildren(head, grid);
+  slide.classList.add('slide-cinema');
+  return visual;
+}
+function fitCinemaText(slide) {
+  const text = slide.querySelector('.cinema-text');
+  if (!text || window.matchMedia('(max-width: 600px)').matches) return;
+  text.classList.remove('is-tight', 'is-tighter');
+  requestAnimationFrame(() => {
+    if (text.scrollHeight <= text.clientHeight + 2) return;
+    text.classList.add('is-tight');
+    if (text.scrollHeight <= text.clientHeight + 2) return;
+    text.classList.add('is-tighter');
+  });
+}
+function clearSlideTimer() {
+  if (app.slideTimer) {
+    clearTimeout(app.slideTimer);
+    app.slideTimer = null;
+  }
+}
+function stopScene() {
+  if (app.scene) {
+    app.scene.destroy();
+    app.scene = null;
+  }
+}
+function scheduleAutoplay(q, kind) {
+  clearSlideTimer();
+  if (!app.autoplay || !SCENE_SLIDES.has(kind)) return;
+  const slides = slidesFor(q);
+  const nextKind = slides[app.slideIndex + 1];
+  if (!nextKind || (!SCENE_SLIDES.has(nextKind) && nextKind !== 'review')) return;
+  const index = app.slideIndex;
+  const duration = app.scene?.duration || 9000;
+  app.slideTimer = setTimeout(() => {
+    app.slideTimer = null;
+    if (!app.autoplay || app.overviewOpen) return;
+    if (app.currentId !== q.id || app.slideIndex !== index) return;
+    goNext();
+  }, duration + 500);
+}
+function toggleAutoplay() {
+  app.autoplay = !app.autoplay;
+  try { localStorage.setItem(AUTOPLAY_KEY, app.autoplay ? '1' : '0'); } catch { /* storage unavailable */ }
+  render();
+  announce(app.autoplay ? '自动播放已开启：讲解页会依次播放，停在选项与自评前。' : '自动播放已关闭。');
+}
 const currentQuestion = () => app.bank?.questions.find(q => q.id === app.currentId) || null;
 const visibleQuestions = () => app.bank
   ? filterQuestions(app.bank.questions, app.states, { topic: app.topic, difficulty: '', type: '', search: '', mode: 'all' })
@@ -146,6 +230,7 @@ function fitStage() {
   fitter.style.width = `${Math.floor(1600 * scale)}px`;
   fitter.style.height = `${Math.floor(900 * scale)}px`;
   frame.style.transform = `scale(${scale})`;
+  fitCinemaText(frame);
 }
 
 function renderTopics() {
@@ -184,6 +269,9 @@ function slideHead(kicker, q, extra) {
   left.append(el('div', 'kicker', kicker));
   const rail = el('div', 'question-rail');
   rail.append(el('span', 'chip', q.difficulty), el('span', 'chip', q.type === 'single' ? '单选' : '简答 · 自评'));
+  const graphic = el('span', 'chip visual-chip', '图解');
+  graphic.title = '这道题的讲解页带动画图解，选中答案后翻开';
+  rail.append(graphic);
   left.append(rail);
   const right = el('div', 'head-meta');
   const badge = el('span', `result-badge ${q.type === 'single' ? (app.states[q.id].submitted ? (isCorrect(q, app.states[q.id]) ? 'good' : 'bad') : 'neutral') : (app.states[q.id].selfAssessment ? 'good' : 'neutral')}`, resultText(q));
@@ -208,12 +296,26 @@ function renderStage(q, slides) {
     assess: renderAssessSlide,
   }[kind];
   const slide = renderer(q);
+  const sceneSpec = sceneSpecFor(q, kind);
+  if (sceneSpec) cinematicLayout(slide, q, kind, sceneSpec);
   if (['terms', 'deep', 'options', 'review'].includes(kind)) {
     const length = slide.textContent.replace(/\s+/g, '').length;
     slide.classList.toggle('density-tight', length > 760);
     slide.classList.toggle('density-airy', length < 420);
   }
+  clearSlideTimer();
+  stopScene();
   stage.replaceChildren(slide);
+  if (sceneSpec) {
+    const host = slide.querySelector('.cinema-visual');
+    if (host) {
+      app.scene = mountScene(host, sceneSpec, {
+        reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      });
+    }
+  }
+  fitCinemaText(slide);
+  scheduleAutoplay(q, kind);
 }
 
 function renderQuestionSlide(q) {
@@ -224,6 +326,7 @@ function renderQuestionSlide(q) {
   slide.append(el('h1', '', q.title));
   const body = el('div', 'slide-body');
   body.append(el('p', 'slide-sub', q.prompt));
+  body.append(el('p', 'visual-hint', '选中答案后，解析会用动态图解逐页展开。'));
 
   if (q.type === 'single') {
     const fieldset = el('fieldset', 'options');
@@ -531,6 +634,8 @@ function renderFooter(q, slides) {
   $('footer-summary').textContent = `本页 ${app.slideIndex + 1} / ${slides.length} · ${slideName} · ${resultText(q)}`;
   $('bookmark').textContent = app.states[q.id].bookmarked ? '已收藏' : '收藏';
   $('bookmark').setAttribute('aria-pressed', String(app.states[q.id].bookmarked));
+  $('autoplay-toggle').textContent = app.autoplay ? '自动播放 · 开' : '自动播放 · 关';
+  $('autoplay-toggle').setAttribute('aria-pressed', String(app.autoplay));
   $('prev').disabled = !hasPrev();
   $('next').disabled = !hasNext();
   const track = $('progress-track');
@@ -728,6 +833,7 @@ function wire() {
   wired = true;
   $('prev').addEventListener('click', goPrev);
   $('next').addEventListener('click', goNext);
+  $('autoplay-toggle').addEventListener('click', toggleAutoplay);
   $('bookmark').addEventListener('click', toggleBookmark);
   $('overview-toggle').addEventListener('click', toggleOverview);
   $('overview-button').addEventListener('click', toggleOverview);
@@ -765,6 +871,8 @@ function wire() {
     }
   });
   window.addEventListener('resize', fitStage);
+  $('stage').addEventListener('pointerdown', clearSlideTimer, { passive: true });
+  $('stage').addEventListener('wheel', clearSlideTimer, { passive: true });
   let touchStart = null;
   let suppressClick = false;
   $('stage').addEventListener('touchstart', event => {
@@ -809,6 +917,10 @@ async function load() {
     app.currentId = app.bank.questions.some(q => q.id === saved.currentId) ? saved.currentId : app.bank.questions[0].id;
     app.slideIndex = Number.isInteger(saved.slideIndex) ? saved.slideIndex : 0;
     app.slideIndex = Math.max(0, Math.min(app.slideIndex, slidesFor(currentQuestion()).length - 1));
+    try {
+      const storedAutoplay = localStorage.getItem(AUTOPLAY_KEY);
+      app.autoplay = storedAutoplay === null ? true : storedAutoplay === '1';
+    } catch { /* keep default */ }
     $('overview').hidden = true;
     $('loading').hidden = true;
     $('app').hidden = false;
@@ -830,5 +942,10 @@ async function load() {
 
 window.addEventListener('beforeunload', () => save(true));
 window.addEventListener('pagehide', () => save(true));
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') save(true); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    clearSlideTimer();
+    save(true);
+  }
+});
 load();
