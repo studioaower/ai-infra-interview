@@ -35,9 +35,13 @@ python3 -m http.server 4180 --bind 127.0.0.1
 
 ## GitHub Pages
 
-仓库根目录就是静态站点，`motor-explained/index.html` 是另一份单文件课程。推送到 `main` 后，在仓库 Settings → Pages 选择 `Deploy from a branch`、分支 `main`、目录 `/ (root)` 即可。仓库里的 `.nojekyll` 会关闭 Jekyll 处理。
+已部署：
 
-站点会是 `https://<用户名>.github.io/<仓库名>/`，Motor 图解在 `https://<用户名>.github.io/<仓库名>/motor-explained/`。
+- 练习站：<https://studioaower.github.io/ai-infra-interview/>
+- Motor 图解：<https://studioaower.github.io/ai-infra-interview/motor-explained/>
+- 仓库：<https://github.com/studioaower/ai-infra-interview>
+
+仓库根目录就是静态站点，`motor-explained/index.html` 是另一份单文件课程。推送到 `main` 后，在仓库 Settings → Pages 选择 `Deploy from a branch`、分支 `main`、目录 `/ (root)` 即可。仓库里的 `.nojekyll` 会关闭 Jekyll 处理。
 
 进度默认保存在当前浏览器同一站点的 `localStorage`。换设备或清站点数据后，可以在“题目总览 → 导出进度 / 导入进度”之间迁移；导入会按题目 `revision` 跳过版本已变化的题。
 
