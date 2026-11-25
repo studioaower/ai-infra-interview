@@ -239,9 +239,7 @@ function renderQuestionSlide(q) {
       input.setAttribute('aria-label', `${option.id} ${option.text}`);
       input.addEventListener('change', () => {
         s.selected = option.id;
-        const feedback = $('answer-feedback');
-        if (feedback) { feedback.className = 'feedback'; feedback.textContent = '已选择，提交后进入解析。'; }
-        save();
+        commitSingle(q);
       });
       label.append(input, el('span', 'option-key', option.id), el('span', '', option.text));
       if (s.submitted) {
@@ -258,7 +256,7 @@ function renderQuestionSlide(q) {
       feedback.className = `feedback ${isCorrect(q, s) ? 'good' : 'bad'}`;
       feedback.textContent = isCorrect(q, s) ? '答对了。翻页检查自己的理由是否完整。' : '这次没有选对。翻页看解析，之后可以重做。';
     } else {
-      feedback.textContent = '先独立判断，提交后再看答案。';
+      feedback.textContent = '选择后立即进入解析；先独立判断，再翻页核对。';
     }
     const actions = el('div', 'slide-actions');
     if (s.submitted) {
@@ -266,22 +264,6 @@ function renderQuestionSlide(q) {
         makeButton('查看解析 →', () => goToSlide(1), 'btn primary'),
         makeButton('重做本题', () => resetQuestion(q), 'btn ghost'),
       );
-    } else {
-      actions.append(makeButton('提交答案', () => {
-        if (!s.selected) {
-          feedback.className = 'feedback bad';
-          feedback.textContent = '请先选择一个答案。';
-          announce('请先选择一个答案。');
-          return;
-        }
-        s.submitted = true;
-        s.revealed = true;
-        app.slideIndex = 1;
-        save(true);
-        announce(isCorrect(q, s) ? '答对了。已进入参考答案。' : '答错了。已进入参考答案。');
-        render();
-        focusStage();
-      }, 'btn primary'));
     }
     actions.append(feedback);
     body.append(actions);
@@ -707,6 +689,17 @@ function closeOverview() {
 function toggleOverview() {
   if (app.overviewOpen) closeOverview(); else openOverview();
 }
+function commitSingle(q) {
+  const s = app.states[q.id];
+  if (s.submitted || !s.selected) return;
+  s.submitted = true;
+  s.revealed = true;
+  app.slideIndex = 1;
+  save(true);
+  announce(isCorrect(q, s) ? '答对了。已进入参考答案。' : '答错了。已进入参考答案。');
+  render();
+  focusStage();
+}
 function selectOption(optionId) {
   const q = currentQuestion();
   if (!q || q.type !== 'single') return false;
@@ -716,16 +709,6 @@ function selectOption(optionId) {
   if (!input || input.disabled) return false;
   input.checked = true;
   input.dispatchEvent(new Event('change', { bubbles: true }));
-  announce(`已选择 ${optionId}`);
-  return true;
-}
-function submitCurrent() {
-  const q = currentQuestion();
-  if (!q || q.type !== 'single') return false;
-  if (slidesFor(q)[app.slideIndex] !== 'question' || app.states[q.id].submitted) return false;
-  const button = document.querySelector('#stage .slide-actions .btn.primary');
-  if (!button || !button.textContent.includes('提交答案')) return false;
-  button.click();
   return true;
 }
 function goToQuestion(id) {
@@ -780,11 +763,34 @@ function wire() {
       const optionId = /^[1-4]$/.test(key) ? 'ABCD'[Number(key) - 1] : key.toUpperCase();
       if (selectOption(optionId)) event.preventDefault();
     }
-    else if (key === 'Enter' && !target?.closest('button,a')) {
-      if (submitCurrent()) event.preventDefault();
-    }
   });
   window.addEventListener('resize', fitStage);
+  let touchStart = null;
+  let suppressClick = false;
+  $('stage').addEventListener('touchstart', event => {
+    if (app.overviewOpen || event.touches.length !== 1 || event.target.closest('input,textarea,select')) { touchStart = null; return; }
+    const touch = event.touches[0];
+    touchStart = { x: touch.clientX, y: touch.clientY, at: Date.now() };
+  }, { passive: true });
+  $('stage').addEventListener('touchend', event => {
+    if (!touchStart || app.overviewOpen) { touchStart = null; return; }
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - touchStart.x;
+    const dy = touch.clientY - touchStart.y;
+    const elapsed = Date.now() - touchStart.at;
+    touchStart = null;
+    if (elapsed > 900 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 350);
+    if (dx < 0) goNext(); else goPrev();
+  }, { passive: true });
+  $('stage').addEventListener('touchcancel', () => { touchStart = null; }, { passive: true });
+  $('stage').addEventListener('click', event => {
+    if (!suppressClick) return;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressClick = false;
+  }, true);
   if ('ResizeObserver' in window) new ResizeObserver(fitStage).observe($('viewport'));
 }
 
