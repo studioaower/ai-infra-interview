@@ -125,9 +125,10 @@ test('筛选按专题、难度、题型、关键词与练习模式组合生效',
 });
 
 test('视觉场景只允许预置、合法时长和匹配的数据结构', () => {
+  assert.equal(bank.questions.every(q => q.visual), true, '每道题都带视觉场景');
   const withVisual = bank.questions.find(q => q.visual);
-  assert.ok(withVisual, '至少有一道样板题带视觉场景');
   assert.ok(withVisual.visual.preset);
+  assert.equal(new Set(bank.questions.map(q => q.visual.headline)).size, bank.questions.length, '标题不重复');
 
   const badPreset = structuredClone(bank);
   badPreset.questions.find(q => q.visual).visual.preset = 'explode';
