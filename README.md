@@ -42,6 +42,8 @@ python3 -m http.server 4180 --bind 127.0.0.1
 
 仓库根目录就是静态站点，`motor-explained/index.html` 是另一份单文件课程。推送到 `main` 后，在仓库 Settings → Pages 选择 `Deploy from a branch`、分支 `main`、目录 `/ (root)` 即可。仓库里的 `.nojekyll` 会关闭 Jekyll 处理。
 
+`motor-explained/` 是 13 章 51 页的 Motor 图解课程：明亮电影感舞台、逐字标题、自动播放并自动翻页、箭头/空格控制、手机竖屏纵向布局、左右滑动，以及 llm-d、AIBrix、Dynamo、SGLang Router、vLLM Production Stack、KServe、Mooncake、Ray Serve、Triton 的对比章节。每页带“为什么需要 / 拿掉以后会怎样”的深度卡；讲解面板里还有现场信号、代价边界和核对入口。
+
 进度默认保存在当前浏览器同一站点的 `localStorage`。换设备或清站点数据后，可以在“题目总览 → 导出进度 / 导入进度”之间迁移；导入会按题目 `revision` 跳过版本已变化的题。
 
 ## 目录
