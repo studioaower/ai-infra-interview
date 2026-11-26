@@ -318,6 +318,56 @@ function renderStage(q, slides) {
   scheduleAutoplay(q, kind);
 }
 
+const EXPLAIN_PATH = {
+  single: ['summary', 'terms', 'explain', 'deep', 'options', 'review'],
+  short: ['summary', 'terms', 'explain', 'deep', 'review', 'assess'],
+};
+
+function questionAside(q) {
+  const aside = el('aside', 'question-aside');
+  aside.setAttribute('aria-label', '本题速览');
+
+  const overview = el('section', 'aside-block aside-overview');
+  overview.append(el('p', 'aside-label', '本题速览'));
+  const meta = el('dl', 'aside-meta');
+  const rows = [
+    ['专题', q.topic],
+    ['题型', q.type === 'single' ? '单选' : '简答 · 自评'],
+    ['来源', `${q.sourceIds.length} 条`],
+    ['术语', `${q.answer.terms?.length ?? 0} 个`],
+  ];
+  rows.forEach(([label, value]) => {
+    const row = el('div');
+    row.append(el('dt', '', label), el('dd', '', value));
+    meta.append(row);
+  });
+  overview.append(meta);
+  aside.append(overview);
+
+  if (q.tags?.length) {
+    const tags = el('section', 'aside-block aside-tags');
+    tags.append(el('p', 'aside-label', '关键词'));
+    const list = el('div', 'aside-tag-list');
+    q.tags.forEach(tag => list.append(el('span', 'chip', tag)));
+    tags.append(list);
+    aside.append(tags);
+  }
+
+  const path = el('section', 'aside-block aside-path');
+  path.append(el('p', 'aside-label', '解析路径'));
+  const steps = el('ol', 'roadmap');
+  EXPLAIN_PATH[q.type].forEach((kind, i) => {
+    const item = el('li', kind === 'explain' ? 'is-visual' : '');
+    item.append(el('span', 'roadmap-dot', String(i + 1)), el('span', 'roadmap-name', SLIDE_NAMES[kind]));
+    if (kind === 'explain') item.append(el('span', 'roadmap-tag', '动态图解'));
+    steps.append(item);
+  });
+  path.append(steps);
+  aside.append(path);
+  aside.append(el('p', 'aside-foot', '选中答案即进入解析，图解按拍子逐层推进；底部可随时暂停自动播放。'));
+  return aside;
+}
+
 function renderQuestionSlide(q) {
   const s = app.states[q.id];
   const slide = el('article', 'slide slide-question');
@@ -325,8 +375,10 @@ function renderQuestionSlide(q) {
 
   slide.append(el('h1', '', q.title));
   const body = el('div', 'slide-body');
-  body.append(el('p', 'slide-sub', q.prompt));
-  body.append(el('p', 'visual-hint', '选中答案后，解析会用动态图解逐页展开。'));
+  const grid = el('div', 'question-grid');
+  const main = el('div', 'question-main');
+  main.append(el('p', 'slide-sub', q.prompt));
+  main.append(el('p', 'visual-hint', q.type === 'single' ? '选中答案后，解析会用动态图解逐页展开。' : '展开参考答案后，解析会用动态图解逐页展开。'));
 
   if (q.type === 'single') {
     const fieldset = el('fieldset', 'options');
@@ -344,7 +396,7 @@ function renderQuestionSlide(q) {
         s.selected = option.id;
         commitSingle(q);
       });
-      label.append(input, el('span', 'option-key', option.id), el('span', '', option.text));
+      label.append(input, el('span', 'option-key', option.id), el('span', 'option-text', option.text));
       if (s.submitted) {
         label.dataset.locked = 'true';
         if (option.id === q.answer.optionId) label.classList.add('correct');
@@ -352,7 +404,7 @@ function renderQuestionSlide(q) {
       }
       fieldset.append(label);
     });
-    body.append(fieldset);
+    main.append(fieldset);
     const feedback = el('p', 'feedback');
     feedback.id = 'answer-feedback';
     if (s.submitted) {
@@ -369,7 +421,7 @@ function renderQuestionSlide(q) {
       );
     }
     actions.append(feedback);
-    body.append(actions);
+    main.append(actions);
   } else {
     const field = el('label', 'short-field', '你的回答（只保存在当前浏览器）');
     const input = el('textarea', 'short-input');
@@ -379,7 +431,7 @@ function renderQuestionSlide(q) {
     input.placeholder = '先用自己的话回答，再展开参考答案。';
     input.addEventListener('input', () => { s.text = input.value; save(); });
     field.append(input);
-    body.append(field, el('p', 'short-note', '简答由你对照要点自评，不作自动语义评分。'));
+    main.append(field, el('p', 'short-note', '简答由你对照要点自评，不作自动语义评分。'));
     const feedback = el('p', 'feedback');
     feedback.id = 'answer-feedback';
     feedback.textContent = s.revealed ? '参考答案已展开，请在最后一页完成自评。' : '写完后展开参考答案，再对照要点自评。';
@@ -400,8 +452,10 @@ function renderQuestionSlide(q) {
       }, 'btn primary'));
     }
     actions.append(feedback);
-    body.append(actions);
+    main.append(actions);
   }
+  grid.append(main, questionAside(q));
+  body.append(grid);
   slide.append(body);
   return slide;
 }
